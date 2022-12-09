@@ -48,30 +48,39 @@ class DrivingClient(DrivingController):
         ###########################################################################
 
         # Moving straight forward
-
-        refnum = 24 - max(0, sensing_info.speed-70) / 100
+        # 유라 코드 보고 베낀 거라 확실하진 않지만
+        # 앞으로 가야될 길의 x, y 좌표를 구하는 코드
         way_points = []
         y = math.sqrt(math.pow(sensing_info.distance_to_way_points[0], 2)-math.pow(sensing_info.to_middle, 2))
         way_points.append({'x': 0, 'y': y})
-        for i in range(9):
+        for i in range(9):  # 9개의 지점에 대한 angle에 따른 x, y 좌표
             x = way_points[i]['x'] + (10 * math.sin(math.radians(sensing_info.track_forward_angles[i])))
             y = way_points[i]['y'] + (10 * math.cos(math.radians(sensing_info.track_forward_angles[i])))
             way_points.append({'x': x, 'y': y})
-        if sensing_info.speed < 120:
-            ref_idx = 7
+        # refnum = 얼마나 멀리 있는 지점을 보고 달릴 건지 정하는 변수. 밑의 ref_idx를 정할 때 사용. 속도가 빨라질 수록 refnum은 줄어들게.
+        refnum = 24 - max(0, sensing_info.speed - 70) / 100
+        if sensing_info.speed < 120:    # ref_idx = 열 개의 지점 중 몇 번째 지점을 기준으로 핸들을 돌릴 건지 정하는 변수.
+            ref_idx = 7                 # 처음에 속도가 너무 느릴 때는 너무 짧게 보길래 강제로 멀리 보게 변수 조정.
         else:
-            ref_idx = max(5, int(sensing_info.speed/refnum))
+            ref_idx = max(5, int(sensing_info.speed/refnum))    # 속도 120km 이상일 때는 속도에 맞춰서 보도록.
+        # target_x, target_y = 현재 보고 있는 지점
         target_x = way_points[ref_idx]['x']
         target_y = way_points[ref_idx]['y']
-        brk = max(0, abs(sensing_info.track_forward_angles[ref_idx] - sensing_info.moving_angle)-25) / 840 + max(0, sensing_info.speed - 180) / 100
+
+        # spdnum = 핸들을 꺽는 정도. 중심에서 벗어날수록, 현재 나의 각도와 앞으로 볼 각도의 크기 차이가 클수록, 속도가 높을수록 핸들을 확 돌리도록.
         spdnum = abs(sensing_info.to_middle-12)/40 + max(0, abs(sensing_info.track_forward_angles[ref_idx]) - abs(sensing_info.moving_angle/2)-4) / 600 + max(0, sensing_info.speed-100) / 105
+        # steering = 핸들 꺽는 정도.
         steering = (math.atan((target_x - sensing_info.to_middle)/target_y) -
                     math.radians(sensing_info.moving_angle)) * spdnum
+        # brk = 브레이크 잡는 정도. 현재 나의 각도와 앞으로 볼 각도의 크기 차이가 클수록 세게. && 속도가 180이 넘으면 브레이크 잡도록.
+        brk = max(0, abs(sensing_info.track_forward_angles[ref_idx] - sensing_info.moving_angle) - 25) / 840 + max(0, sensing_info.speed - 180) / 100
+        # 속도가 200이 넘으면 brk에 0.3을 더해 더 세게 브레이크 잡기.
         if sensing_info.speed < 200:
             car_controls.brake = 0 + brk
         elif 200 <= sensing_info.speed:
-            car_controls.brake = 0.5 + brk
+            car_controls.brake = 0.3 + brk
         car_controls.steering = steering
+        # 언제나 풀악셀...
         car_controls.throttle = 1
 
         
